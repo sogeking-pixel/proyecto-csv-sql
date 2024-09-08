@@ -18,10 +18,41 @@ conn = mysql.connector.connect(
 
 cursor = conn.cursor()
 
+#Crear tabla si es que no existe
+create_table_departamentos = """
+    CREATE TABLE IF NOT EXISTS departamentos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nombre VARCHAR(255) NOT NULL
+    )
+    """
+
+create_table_provincias = """
+    CREATE TABLE IF NOT EXISTS provincias (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        departamento_id INT,
+        nombre VARCHAR(255) NOT NULL,
+        FOREIGN KEY (departamento_id) REFERENCES departamentos(id)
+    )
+    """
+
+create_table_distritos = """
+    CREATE TABLE IF NOT EXISTS distritos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ubigeo int UNIQUE,
+        provincia_id INT,
+        nombre VARCHAR(255) NOT NULL,
+        poblacion INT NOT NULL,
+        superficie FLOAT NOT NULL,
+        y FLOAT NOT NULL,
+        x FLOAT NOT null,
+        FOREIGN KEY (provincia_id) REFERENCES provincias(id)
+    )
+    """
+
 # Crear la tabla temporal
 cursor.execute('''
     CREATE TEMPORARY TABLE temp_datos (
-        ubigeo VARCHAR(6),
+        ubigeo int,
         distrito VARCHAR(255),
         provincia VARCHAR(255),
         departamento VARCHAR(255),
@@ -42,26 +73,32 @@ for _, row in df.iterrows():
 
 conn.commit()
 
+cursor.execute(create_table_departamentos)
+
 # Insertar los departamentos en la tabla departamento
 cursor.execute('''
-    INSERT INTO departamento (nombre)
+    INSERT INTO departamentos (nombre)
     SELECT DISTINCT departamento FROM temp_datos
 ''')
 
+
+cursor.execute(create_table_provincias)
 # Insertar las provincias en la tabla provincia
 cursor.execute('''
-    INSERT INTO provincia (nombre, id_departamento)
-    SELECT DISTINCT temp_datos.provincia, departamento.id
+    INSERT INTO provincias (nombre, departamento_id)
+    SELECT DISTINCT temp_datos.provincia, departamentos.id
     FROM temp_datos
-    JOIN departamento ON temp_datos.departamento = departamento.nombre
+    JOIN departamentos ON temp_datos.departamento = departamentos.nombre
 ''')
 
+
+cursor.execute(create_table_distritos)
 # Insertar los distritos en la tabla distrito
 cursor.execute('''
-    INSERT INTO distrito (ubigeo, nombre, id_provincia, poblacion, superficie, x, y)
-    SELECT temp_datos.ubigeo, temp_datos.distrito, provincia.id, temp_datos.poblacion, temp_datos.superficie, temp_datos.x, temp_datos.y
+    INSERT INTO distritos (ubigeo, nombre, provincia_id, poblacion, superficie, x, y)
+    SELECT temp_datos.ubigeo, temp_datos.distrito, provincias.id, temp_datos.poblacion, temp_datos.superficie, temp_datos.x, temp_datos.y
     FROM temp_datos
-    JOIN provincia ON temp_datos.provincia = provincia.nombre
+    JOIN provincias ON temp_datos.provincia = provincias.nombre
 ''')
 
 conn.commit()
